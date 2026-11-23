@@ -19,16 +19,57 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Extract project
+      - name: Extract and fix project
+        shell: bash
         run: |
+          set -e
+
           unzip -q persian-voice-assistant-main.zip
           cd persian-voice-assistant-main
+
           sed -i '/apply(plugin: "dagger.hilt.android.plugin")/d' domain/usecase/build.gradle.kts
+
+          mkdir -p app/src/main/java/com/persianvoice/assistant/core/common/di
+
+          if [ -f core/common/src/main/java/com/persianvoice/assistant/core/common/di/AppModule.kt ]; then
+            mv core/common/src/main/java/com/persianvoice/assistant/core/common/di/AppModule.kt app/src/main/java/com/persianvoice/assistant/core/common/di/AppModule.kt
+          fi
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path("core/common/build.gradle.kts")
+          s = p.read_text()
+
+          if 'project(":domain:model")' not in s:
+              s = s.replace(
+                  "dependencies {",
+                  'dependencies {\n    implementation(project(":domain:model"))',
+                  1
+              )
+              p.write_text(s)
+          PY
+
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+
+      - name: Build APK
+        shell: bash
+        run: |
+          cd persian-voice-assistant-main
+          set -o pipefail
+          ./gradlew assembleDebug --no-daemon --stacktrace --console=plain 2>&1 | tee "$GITHUB_WORKSPACE/build.log"
 
       - name: Upload APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: Persian-Assistant-APK
           path: persian-voice-assistant-main/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Gradle-Build-Log
+          path: build.log
+          if-no-files-found: ignore
