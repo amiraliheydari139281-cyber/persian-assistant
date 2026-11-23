@@ -23,6 +23,7 @@ jobs:
         run: |
           unzip -q persian-voice-assistant-main.zip
           cd persian-voice-assistant-main
+          sed -i '/apply(plugin: "dagger.hilt.android.plugin")/d' domain/usecase/build.gradle.kts
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
 
